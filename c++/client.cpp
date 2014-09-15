@@ -1,4 +1,5 @@
 #include <map>
+#include <set>
 #include <vector>
 #include <thread>
 #include <mutex>
@@ -267,6 +268,8 @@ public:
 
 class P2PClient : public P2PRelayer {
 public:
+	std::set<std::vector<unsigned char> > blockSeenSet;
+
 	P2PClient(const char* serverHostIn, uint16_t serverPortIn,
 				const std::function<void (std::vector<unsigned char>&, struct timeval)>& provide_block_in,
 				const std::function<void (std::shared_ptr<std::vector<unsigned char> >&)>& provide_transaction_in) :
@@ -285,8 +288,8 @@ private:
 
 
 int main(int argc, char** argv) {
-	if (argc != 4) {
-		printf("USAGE: %s RELAY_SERVER BITCOIND_ADDRESS BITCOIND_PORT\n", argv[0]);
+	if (argc < 3) {
+		printf("USAGE: %s RELAY_SERVER [full|nonf]:BITCOIND_ADDRESS:BITCOIND_PORT\n", argv[0]);
 		return -1;
 	}
 
@@ -297,12 +300,38 @@ int main(int argc, char** argv) {
 #endif
 
 	RelayNetworkClient* relayClient;
-	P2PClient p2p(argv[2], std::stoul(argv[3]),
+	std::vector<P2PClient*> fullServers;
+	std::vector<P2PClient*> nonFullServers;
+	for (int i = 2; i < argc; i++) {
+		std::string cmdline(argv[i]);
+		unsigned long port = std::stoul(cmdline.substr(cmdline.find_last_of(":")+1));
+		argv[i][cmdline.find_last_of(":")] = '\0';
+		if (!strncmp(argv[i], "full:", strlen("full:")))
+			fullServers.push_back(new P2PClient(argv[i] + 5, port,
 					[&](std::vector<unsigned char>& bytes, struct timeval) { relayClient->receive_block(bytes); },
-					[&](std::shared_ptr<std::vector<unsigned char> >& bytes) { relayClient->receive_transaction(bytes); });
+					[&](std::shared_ptr<std::vector<unsigned char> >& bytes) { relayClient->receive_transaction(bytes); }));
+		else
+			nonFullServers.push_back(new P2PClient(argv[i] + 5, port,
+					[&](std::vector<unsigned char>& bytes, struct timeval) {
+						relayClient->receive_block(bytes);
+						for (P2PClient* r : nonFullServers)
+							if (!r->blockSeenSet.insert(std::vector<unsigned char>(&bytes[sizeof(struct bitcoin_msg_header)], &bytes[sizeof(struct bitcoin_msg_header) + 80])).second)
+								r->receive_block(bytes);
+					},
+					[&](std::shared_ptr<std::vector<unsigned char> >& bytes) { relayClient->receive_transaction(bytes); }));
+	}
+
 	relayClient = new RelayNetworkClient(argv[1],
-										[&](std::vector<unsigned char>& bytes) { p2p.receive_block(bytes); },
-										[&](std::shared_ptr<std::vector<unsigned char> >& bytes) { p2p.receive_transaction(bytes); });
+										[&](std::vector<unsigned char>& bytes) {
+											for (P2PClient* r : fullServers) {
+												if (!r->blockSeenSet.insert(std::vector<unsigned char>(&bytes[sizeof(struct bitcoin_msg_header)], &bytes[sizeof(struct bitcoin_msg_header) + 80])).second)
+													r->receive_block(bytes);
+											}
+										},
+										[&](std::shared_ptr<std::vector<unsigned char> >& bytes) {
+											for (P2PRelayer* r : fullServers)
+												r->receive_transaction(bytes);
+										});
 
 	while (true) { sleep(1000); }
 }
