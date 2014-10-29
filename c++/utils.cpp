@@ -4,6 +4,8 @@
 #include <vector>
 #include <string.h>
 #include <stdio.h>
+#include <string.h>
+#include <sys/errno.h>
 
 #ifdef WIN32
 	// MinGW doesnt have this line (copied from Wine) for licensing reasons
@@ -20,7 +22,7 @@
 #endif // !WIN32
 
 #if defined(__APPLE__) && defined(__MACH__)
-#include <sys/param.h>
+#define MSG_NOSIGNAL 0
 
 uint16_t
 htole16 (uint16_t n)
@@ -144,16 +146,16 @@ ssize_t read_all(int filedes, char *buf, size_t nbyte) {
 ssize_t send_all(int filedes, const char *buf, size_t nbyte) {
 	ssize_t count = 0;
 	size_t total = 0;
-#if 0
 	while (total < nbyte && (count = send(filedes, buf + total, nbyte-total, MSG_NOSIGNAL)) > 0)
-#else
-	while (total < nbyte && (count = send(filedes, buf + total, nbyte-total, 0)) > 0)
-#endif
 		total += count;
-	if (count <= 0)
+	if (count == 0) {
 		return count;
-	else
+	} else if (count < 0) {
+		fprintf (stderr, "send failed: (%d: %s)\n", errno, strerror (errno));
+		return count;
+	} else {
 		return total;
+	}
 }
 
 std::string gethostname(struct sockaddr_in6 *addr) {
@@ -197,9 +199,6 @@ bool lookup_address(const char* addr, struct sockaddr_in6* res) {
 			for (int i=0; i < 4; i++) {
 				p6[12+i] = p4[i];
 			}
-			char name[512];
-			inet_ntop (AF_INET6, &(res->sin6_addr), name, 512);
-			fprintf (stderr, "name=%s\n", name);
 			res->sin6_family = AF_INET6;
 			return true;
 		}
