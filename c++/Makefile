@@ -1,6 +1,8 @@
 # all common objects that need to be build for all targets except for windows version
 common_objs := flaggedarrayset.o utils.o p2pclient.o ./crypto/sha2.o
 
+CXX=c++
+
 MINGW_CXX = i686-w64-mingw32-g++
 
 COMMON_CXXFLAGS := -I.
