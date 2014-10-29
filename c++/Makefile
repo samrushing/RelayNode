@@ -20,6 +20,9 @@ platform ?= linux
 ifeq ($(UNAME_S),Linux)
   COMMON_CXXFLAGS += -flto
 endif
+ifeq ($(UNAME_S),Darwin)
+  COMMON_CXXFLAGS += -flto -DX86_BSD
+endif
 ifeq ($(UNAME_S),FreeBSD)
   COMMON_CXXFLAGS += -DX86_BSD
 endif
