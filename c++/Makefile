@@ -7,15 +7,20 @@ MINGW_CXX = i686-w64-mingw32-g++
 
 COMMON_CXXFLAGS := -I.
 
+UNAME_S := $(shell uname -s)
+
 variant ?= production
 ifeq ($(variant),test)
   COMMON_CXXFLAGS += -DFOR_VALGRIND -g
 else
-  COMMON_CXXFLAGS += -DNDEBUG -O2 -flto
+  COMMON_CXXFLAGS += -DNDEBUG -O2
 endif
 
 platform ?= linux
-ifeq ($(platform),bsd)
+ifeq ($(UNAME_S),Linux)
+  COMMON_CXXFLAGS += -flto
+endif
+ifeq ($(UNAME_S),FreeBSD)
   COMMON_CXXFLAGS += -DX86_BSD
 endif
 
