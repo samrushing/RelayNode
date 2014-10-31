@@ -48,22 +48,31 @@ void P2PRelayer::do_connect(P2PRelayer* me) {
 		return me->reconnect("unable to lookup host");
 
 	int v6only = 0;
-	setsockopt(me->sock, IPPROTO_IPV6, IPV6_V6ONLY, (char *)&v6only, sizeof(v6only));
+	if (setsockopt(me->sock, IPPROTO_IPV6, IPV6_V6ONLY, (char *)&v6only, sizeof(v6only))) {
+		fprintf (stderr, "setsockopt failed: (%d: %s)\n", errno, strerror (errno));
+	}
 
 	addr.sin6_port = htons(me->server_port);
-	if (connect(me->sock, (struct sockaddr*)&addr, sizeof(addr)))
+	if (connect(me->sock, (struct sockaddr*)&addr, sizeof(addr))) {
 		return me->reconnect("failed to connect()");
+	} else {
+		fprintf (stderr, "connected!\n");
+	}
 
 	#ifdef WIN32
 		unsigned long nonblocking = 0;
 		ioctlsocket(me->sock, FIONBIO, &nonblocking);
 	#else
-		fcntl(me->sock, F_SETFL, fcntl(me->sock, F_GETFL) & ~O_NONBLOCK);
+		if (fcntl(me->sock, F_SETFL, fcntl(me->sock, F_GETFL) & ~O_NONBLOCK)) {
+			fprintf (stderr, "fcntl failed: (%d: %s)\n", errno, strerror (errno));
+		}
 	#endif
 
 	#ifdef X86_BSD
 		int nosigpipe = 1;
-		setsockopt(me->sock, SOL_SOCKET, SO_NOSIGPIPE, (void *)&nosigpipe, sizeof(int));
+		if (setsockopt(me->sock, SOL_SOCKET, SO_NOSIGPIPE, (void *)&nosigpipe, sizeof(int))) {
+			fprintf (stderr, "setsockopt failed: (%d: %s)\n", errno, strerror (errno));
+		}
 	#endif
 
 	me->net_process();
@@ -80,8 +89,16 @@ void P2PRelayer::net_process() {
 		return;
 	}
 
+	fprintf (stderr, "sent version\n");
+
 	int nodelay = 1;
-	setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (char*)&nodelay, sizeof(nodelay));
+	if (setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (char*)&nodelay, sizeof(nodelay))) {
+		fprintf (stderr, "setsockopt failed: (%d: %s)\n", errno, strerror (errno));
+	}
+
+	fprintf (stderr, "error here?\n");
+
+	errno = 0;
 
 	if (errno)
 		return reconnect("error during connect");

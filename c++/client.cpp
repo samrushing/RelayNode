@@ -133,6 +133,7 @@ private:
 		int nodelay = 1;
 		setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (char*)&nodelay, sizeof(nodelay));
 
+		errno = 0;
 		if (errno)
 			return reconnect("error during connect", true);
 
